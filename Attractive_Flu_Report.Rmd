@@ -1,0 +1,275 @@
+---
+title: "The Attractive Flu Shot 2019 - Analysis"
+author: "Amnon Maltz and Adi Sarid"
+date: "9/13/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+The following report summarizes the analysis of an "attractive flu shot" experiment. This is merely a technical report including all the data import, transformations, modelling, visualization. 
+
+The report is built in the spirit of "reproduceable research", i.e., assuming a similar data format, all the statistical procedures can be performed in standard packages available in R.
+
+```{r data import}
+
+library(tidyverse)
+
+# To use the saridr package use:
+# devtools::install_github("sarid-ins/saridr")
+
+Sys.setlocale("LC_ALL", "Hebrew") # some responses are in Hebrew - making sure encoding is read correctly.
+
+flu_data <- read_csv("data/flu_data_final.csv") %>% 
+  mutate(treatment = fct_relevel(treatment, "Control", "Recommendation", "Stock", "Cost", "Benefit"))
+
+```
+
+## Validation check
+
+We check for the following inconsistencies:
+
+   * Respondents which checked the "vaccinated last year", but have less than 1 vaccinations in the last 5 years.
+   * Respondents which did not check the "vaccinated last year", but have 5 vaccinations in the last 5 years.
+
+```{r validation check}
+
+flu_data %>% 
+  filter(last_year_vaccine == 1 & five_years_vaccinations == 0 | 
+           last_year_vaccination == 0 & five_years_vaccinations == 5)
+
+```
+
+There are only 3 such inconsistencies, after reading their open-ended action explanation, they all seem to be answering seriously, so we decided to keep them.
+
+## Examing the level of certainty depending on treatment
+
+We show the distribution of certainty level as a function of the treatment presented to the respondents.
+
+
+```{r certainty versus treatment}
+
+ggplot(flu_data, aes(certainty)) + 
+  geom_histogram(bins = 5) + 
+  facet_wrap(~treatment)
+
+```
+
+## Examine correlation of number of vaccinations versus certainty
+
+We examine the relationship between the number of vaccinations in the last 5 years and the certainty level. Logic dictates that respondents which vaccinated 5 times or 0 times are much more "certain" than those who vaccinated 1-4 times.
+
+
+
+```{r vaccination history and certainty}
+history_vs_certainty <- flu_data %>% 
+  mutate(vaccination_history = case_when(five_years_vaccinations %in% c(5) ~ 3,
+                                         five_years_vaccinations %in% c(0:2) ~ 1,
+                                         five_years_vaccinations %in% c(3:4) ~ 2)) %>% 
+  mutate(certainty_3_levels = case_when(certainty >=4 ~ 3,
+                                        certainty == 3 ~ 2,
+                                        certainty <= 2 ~ 1))
+
+cor(history_vs_certainty %>%
+      select(five_years_vaccinations, certainty, certainty_3_levels, vaccination_history)) %>% 
+  knitr::kable()
+```
+
+
+## Effect of treatment split by certain/uncertain (Table 3 in the paper) 
+
+The table compares the effect of the treatment by certainty level.
+
+```{r treatment by certainty}
+total_vaccinated <- flu_data %>% 
+  group_by(treatment) %>% 
+  summarize(tot_vaccinated = mean(action_binary)) %>% 
+  spread(treatment, tot_vaccinated) %>% 
+  mutate(certainty = NA)
+
+# table in percentages
+
+flu_data %>% 
+  group_by(treatment, certainty) %>% 
+  summarize(prop_vaccinated = mean(action_binary)) %>% 
+  spread(treatment, prop_vaccinated) %>% 
+  bind_rows(total_vaccinated) %>% 
+  knitr::kable()
+
+# Table in absolute numbers
+
+flu_data %>% 
+  group_by(treatment, certainty) %>% 
+  summarize(prop_vaccinated = mean(action_binary),
+            vaccinated_abs = sum(action_binary),
+            total_cell = n()) %>% 
+  mutate(tbl_val = paste0(round(prop_vaccinated*100), "% (", vaccinated_abs, "/", total_cell, ")")) %>% 
+  select(treatment, certainty, tbl_val) %>% 
+  spread(treatment, tbl_val) %>% 
+  knitr::kable()
+  
+# Splitting the certainty to two levels (<=3 versus >=4)
+flu_data %>% 
+  mutate(certainty_binary = certainty <= 3) %>% 
+  group_by(treatment, certainty_binary) %>% 
+  summarize(prop_vaccinated = mean(action_binary),
+            vaccinated_abs = sum(action_binary),
+            total_cell = n()) %>% 
+  mutate(tbl_val = paste0(round(prop_vaccinated*100), "% (", vaccinated_abs, "/", total_cell, ")")) %>% 
+  select(treatment, certainty_binary, tbl_val) %>% 
+  spread(treatment, tbl_val) %>% 
+  mutate(certainty_binary = ifelse(certainty_binary, "Uncertain", "Certain")) %>% 
+  knitr::kable()
+
+
+```
+
+## Checking for two-way ANOVA
+
+We examine the two-way anove with vaccination action as the dependent variable versus treatment and certainty. We are using a dichotomous variable certain/uncertain (where uncertain = certainty<=3).
+
+```{r two way anova}
+aov_model <- aov(data = flu_data, formula = action_binary ~ (certainty<=3)*treatment) 
+summary(aov_model)
+```
+
+## One way ANOVA
+
+```{r one way anova}
+aov_uncertain <- aov(data = flu_data %>% filter(certainty <= 3), 
+                     formula = action_binary ~ treatment) 
+
+aov_certain <- aov(data = flu_data %>% filter(certainty >= 4), 
+                     formula = action_binary ~ treatment) 
+summary(aov_uncertain)
+summary(aov_certain)
+```
+
+
+## Multiple comparisons using Dunnettes test
+
+```{r mult comp Dunnettes test}
+
+dunnette <- multcomp::glht(aov_uncertain,
+                          linfct = multcomp::mcp(treatment = 
+                                                   c("Recommendation - Control = 0",
+                                                     "Stock - Control = 0",
+                                                     "Cost - Control = 0",
+                                                     "Benefit - Control = 0"))) %>% 
+  summary()
+
+dunnette
+
+```
+
+## Effect of treatment split by number of vaccinations in the last 5 years
+
+```{r treatment by vaccination history}
+total_vaccinated <- flu_data %>% 
+  group_by(treatment) %>% 
+  summarize(tot_vaccinated = mean(action_binary)) %>% 
+  spread(treatment, tot_vaccinated) %>% 
+  mutate(five_years_vaccinations = NA)
+
+flu_data %>% 
+  group_by(treatment, five_years_vaccinations) %>% 
+  summarize(prop_vaccinated = mean(action_binary)) %>% 
+  spread(treatment, prop_vaccinated) %>% 
+  bind_rows(total_vaccinated) %>% 
+  knitr::kable()
+
+flu_data %>% 
+  group_by(treatment, five_years_vaccinations) %>% 
+  summarize(tot_vaccinated = mean(action_binary)) %>% 
+  ungroup() %>%
+  ggplot(aes(x = five_years_vaccinations, y = tot_vaccinated, fill = treatment)) + 
+  geom_col(position = "dodge", color = "black") + 
+  theme_bw() + 
+  scale_fill_brewer(palette = "Dark2") + 
+  xlab("Number of vaccinations in the last 5 years") + 
+  ylab("% respondents willing to vaccinate next year")
+  
+
+```
+
+
+## Effects of treatment as a function of income
+
+We examine the influence of income on the effect of the treatments
+
+```{r income treatment interaction}
+
+flu_data %>% 
+  group_by(treatment, income) %>% 
+  summarize(tot_vaccinated = mean(action_binary)) %>% 
+  spread(treatment, tot_vaccinated) %>% 
+  slice(c(2, 4, 3, 5, 6, 1)) %>% 
+  knitr::kable()
+
+flu_data %>% 
+  group_by(certainty) %>% 
+  saridr::prop(income) %>% 
+  spread(certainty, prop) %>% 
+  knitr::kable()
+
+
+```
+
+## Demographics (Table 1)
+
+The demographics of participants
+
+```{r demographics}
+gender <- flu_data %>% 
+  group_by(treatment) %>% 
+  saridr::prop(gender) %>% 
+  spread(treatment, prop) %>% 
+  filter(gender == "Female") %>% 
+  mutate(Demography = paste0("% ", gender)) %>% 
+  select(-gender) %>% 
+  mutate_if(is.numeric, ~{paste0(round(.*100,1), "%")})
+
+age <- flu_data %>% 
+  group_by(treatment) %>% 
+  summarize(mean = mean(age, na.rm = T),
+            sd = sd(age, na.rm = T)) %>% 
+  mutate(tbl_value = paste0(round(mean, 1), " (", round(sd, 1), ")")) %>% 
+  ungroup() %>%
+  select(treatment, tbl_value) %>% 
+  spread(treatment, tbl_value) %>% 
+  mutate(Demography = "Age mean (sd)")
+
+income <- flu_data %>% 
+  group_by(treatment) %>% 
+  saridr::prop(income) %>% 
+  spread(treatment, prop) %>% 
+  slice(c(2, 4, 3, 5, 6, 1)) %>% 
+  mutate_if(is.numeric, ~{paste0(round(.*100,1), "%")}) %>% 
+  rename(Demography = income)
+  
+
+education <- flu_data %>% 
+  group_by(treatment) %>% 
+  saridr::prop(education) %>% 
+  spread(treatment, prop) %>% 
+  slice(c(1:2, 4:5, 3, 6)) %>% 
+  mutate_if(is.numeric, ~{paste0(round(.*100,1), "%")}) %>% 
+  rename(Demography = education) %>% 
+  mutate(Demography = fct_explicit_na(Demography))
+
+demographics_latex_table <- bind_rows(gender,
+                                      age,
+                                      income,
+                                      education) %>% 
+  select(Demography, everything())
+
+# Code to generate a nice LaTex (booktabs style) version
+
+# knitr::kable(demographics_latex_table, format = "latex", booktabs = TRUE)
+
+```
+
