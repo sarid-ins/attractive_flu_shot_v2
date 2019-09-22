@@ -127,7 +127,7 @@ flu_data %>%
   knitr::kable()
 
 # figure of vaccinations
-intentions_plot <- flu_data %>%
+intentions_for_plot <- flu_data %>%
   mutate(Certainty = case_when(certainty <= 3 ~ "Uncertain",
                                certainty >= 4 ~ "Certain")) %>% 
   group_by(treatment, Certainty) %>% 
@@ -135,20 +135,32 @@ intentions_plot <- flu_data %>%
             Vaccin_next_year_sd = sd(action_binary),
             successes = sum(action_binary),
             trials = n()) %>% 
-  ungroup() %>% 
+  group_by(treatment, Certainty, Vaccine_next_year, Vaccin_next_year_sd) %>% 
+  nest() %>% 
+  mutate(confint = map(data, ~{
+    propres <- prop.test(.$successes, .$trials)
+    tibble(lb = propres$conf.int[1], ub = propres$conf.int[2])
+  })) %>% 
+  select(-data) %>% 
+  unnest(cols = confint) %>% 
   mutate(vaccin_next_sd_minus = Vaccine_next_year - Vaccin_next_year_sd,
-         vaccin_next_sd_plus = Vaccine_next_year + Vaccin_next_year_sd) %>% 
-  ggplot(aes(x = treatment, y = Vaccine_next_year, fill = treatment)) + 
+         vaccin_next_sd_plus = Vaccine_next_year + Vaccin_next_year_sd)
+
+    
+intentions_plot <- ggplot(intentions_for_plot, aes(x = treatment, y = Vaccine_next_year, fill = treatment)) + 
   geom_col(color = "black") +
   facet_grid(rows = vars(Certainty)) + 
   theme_bw() + 
-  geom_errorbar(aes(ymin = vaccin_next_sd_minus, ymax = vaccin_next_sd_plus)) +
+  geom_errorbar(aes(ymin = lb, ymax = ub), size = 1) +
   scale_y_continuous(labels = scales::percent_format(1)) + 
   ylab("Intentions to vaccinate") + 
   xlab("Treatment") + 
   guides(fill = guide_legend("Treatment"))
   
 intentions_plot
+
+# export
+#ggsave(filename = "data/intentions_plot.png", intentions_plot, width = 20, height = 10, units = "cm")
 
 ```
 
@@ -495,4 +507,18 @@ flu_data %>%
   column_to_rownames(var = "treatment") %>% 
   as.matrix() %>% 
   chisq.test()
+```
+
+## Time to complete questionnaire
+
+```{r time to complete}
+complete_duration <- flu_data %>% 
+  mutate_at(vars(started, submitted), ~lubridate::dmy_hms(.)) %>% 
+  mutate(duration = submitted - started) %>% 
+  select(id, duration)
+
+ggplot(complete_duration, aes(duration)) + 
+  stat_ecdf() + 
+  theme_bw() + 
+  coord_cartesian(xlim = c(0, 500))
 ```
