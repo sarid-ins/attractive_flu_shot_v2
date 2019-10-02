@@ -562,3 +562,13 @@ flu_data %>%
   
 
 ```
+
+## Certainty Level of Late Vaccinations
+
+```{r certaint of late vaccinations}
+
+flu_data %>% 
+  filter(str_detect(action_recoded, "late")) %>% 
+  saridr::prop(certainty, leave_n = T)
+
+```
