@@ -522,3 +522,21 @@ ggplot(complete_duration, aes(duration)) +
   theme_bw() + 
   coord_cartesian(xlim = c(0, 500))
 ```
+
+## Open ended content analysis
+
+```{r open ended}
+
+open_ended <- read_csv("data/open_ended_content_analysis.csv", skip = 1,
+                       col_names = c("id", "comparison", "spam")) %>% 
+  mutate_all(~ifelse(is.na(.), 0, .))
+
+
+open_ended %>% 
+  count(spam)
+
+open_ended %>% 
+  count(comparison)
+
+```
+

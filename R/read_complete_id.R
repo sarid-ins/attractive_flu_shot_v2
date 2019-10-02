@@ -8,7 +8,7 @@ Sys.setlocale("LC_ALL", "Hebrew")
 new_col_names <- readxl::read_excel("data/new_col_names.xlsx")
 
 # read the file from original source (online surveying tool) ----
-flu_data_raw <- read_csv("https://app.sarid-ins.com/reportsview/?key=471756-10219089-5d8ac2599e14891fa224b951348f884e", 
+flu_data_raw <- read_csv("data/survey_raw_data.csv", 
                          skip = 1,
                          col_names = new_col_names$new_name) %>% 
   select(-contains("skip")) %>% 
@@ -22,7 +22,7 @@ flu_data_raw <- read_csv("https://app.sarid-ins.com/reportsview/?key=471756-1021
 
 # Complete ID (to send to the online sample provider) ---------------------
 
-complete_ids <- flu_data %>% 
+complete_ids <- flu_data_raw %>% 
   filter(Status == "Complete") %>% 
   select(userID)
 
@@ -65,6 +65,7 @@ flu_action_combined <- flu_data_raw %>%
 # these were omitted to a surveygizmo bug, which made them see all treatments instead of a randomized one
 response_bug <- flu_action_combined %>% 
   count(id) %>% 
+  arrange(desc(n)) %>%
   filter(n>1) %>% 
   pull(id)
 
