@@ -572,3 +572,27 @@ flu_data %>%
   saridr::prop(certainty, leave_n = T)
 
 ```
+
+## Comparison Type Open Ended Comments versus Treatment
+
+```{r comparison comments vs treatment}
+comparison_prop_tbl <- flu_data %>% 
+  left_join(open_ended) %>% 
+  mutate(Certainty = certainty <= 3) %>% 
+  group_by(treatment, Certainty) %>% 
+  summarize(portion_comparison = mean(comparison)) %>% 
+  pivot_wider(id_cols = Certainty, names_from = treatment, values_from = portion_comparison) %>% 
+  select(Certainty, Control, Recommendation, Cost, Benefit, Stock)
+
+comparison_abs_str <- flu_data %>% 
+  left_join(open_ended) %>% 
+  mutate(Certainty = certainty <= 3) %>% 
+  group_by(treatment, Certainty) %>% 
+  summarize(tot_comparison = sum(comparison),
+            out_of = n()) %>% 
+  mutate(out_of_str = paste0("(", tot_comparison, "/", out_of, ")")) %>% 
+  select(1,2,5) %>% 
+  pivot_wider(id_cols = Certainty, names_from = treatment, values_from = out_of_str) %>% 
+  select(Certainty, Control, Recommendation, Cost, Benefit, Stock)
+
+```
