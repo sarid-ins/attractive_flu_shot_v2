@@ -27,7 +27,7 @@ complete_ids <- flu_data_raw %>%
   select(userID)
 
 
-# Double check agains duplicates from previous experiments ----------------
+# Double check agains duplicates from pilot ----------------
 
 previous_experiments <- readxl::read_excel("data/previous_experiments.xlsx")
 
