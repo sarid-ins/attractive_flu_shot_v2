@@ -204,43 +204,35 @@ intentions_plot
 
 ```
 
-## Checking for two-way ANOVA
+## Multiple comparison using Mann-Whitney-Wilcoxon
 
-We examine the two-way ANOVA with vaccination intention as the dependent variable versus treatment and certainty. We are using a dichotomous variable certain/uncertain (where uncertain = certainty<=3).
+```{r mann whitney wilcoxon}
 
-```{r two way anova}
-aov_model <- aov(data = flu_data, formula = action_binary ~ (certainty<=3)*treatment) 
-summary(aov_model)
-```
+provide_p_value_MWW <- function(data, treatment_filter){
+  tmp <- data %>% 
+    filter(treatment %in% c("Control", treatment_filter)) %>% 
+    wilcox.test(formula = action_binary ~ treatment, data = .)
+  
+  tmp$p.value
+}
 
-## One way ANOVA
+tibble(treatments = c("Recommendation", "Stock", "Cost", "Benefit")) %>% 
+  mutate(p.values = map_dbl(treatments, 
+                            ~{provide_p_value_MWW(data = flu_data %>% filter(certainty <= 3),
+                                                  treatment_filter = .)})) %>% 
+  mutate(fdr_adjusted = p.adjust(p.values, method = "fdr"))
 
-We also test one-way ANOVA of the vaccination intention versus treatment type (for each certainty type, seperately).
+tibble(treatments = c("Recommendation", "Stock", "Cost", "Benefit")) %>% 
+  mutate(p.values = map_dbl(treatments, 
+                            ~{provide_p_value_MWW(data = flu_data %>% filter(certainty >= 4),
+                                                  treatment_filter = .)})) %>% 
+  mutate(fdr_adjusted = p.adjust(p.values, method = "fdr"))
 
-```{r one way anova}
-aov_uncertain <- aov(data = flu_data %>% filter(certainty <= 3), 
-                     formula = action_binary ~ treatment) 
-
-aov_certain <- aov(data = flu_data %>% filter(certainty >= 4), 
-                     formula = action_binary ~ treatment) 
-summary(aov_uncertain)
-summary(aov_certain)
-```
-
-
-## Multiple comparisons using Dunnettes test (for uncertain only)
-
-```{r mult comp Dunnettes test}
-
-dunnette <- multcomp::glht(aov_uncertain,
-                          linfct = multcomp::mcp(treatment = 
-                                                   c("Recommendation - Control = 0",
-                                                     "Stock - Control = 0",
-                                                     "Cost - Control = 0",
-                                                     "Benefit - Control = 0"))) %>% 
-  summary()
-
-dunnette
+tibble(treatments = c("Recommendation", "Stock", "Cost", "Benefit")) %>% 
+  mutate(p.values = map_dbl(treatments, 
+                            ~{provide_p_value_MWW(data = flu_data,
+                                                  treatment_filter = .)})) %>% 
+  mutate(fdr_adjusted = p.adjust(p.values, method = "fdr"))
 
 ```
 
@@ -273,29 +265,6 @@ effsize::cohen.d(formula = action_binary ~ treatment,
                    filter(certainty <= 3) %>% 
                    filter(treatment %in% c("Control", "Benefit")) %>%
                    mutate(treatment = as.character(treatment)))
-
-```
-
-## One-way ANOVA and Dunnette for the entire population
-
-These are provided without splitting to certain/uncertain
-
-```{r anova dunnette for all}
-
-aov_all <- aov(data = flu_data, 
-                     formula = action_binary ~ treatment) 
-
-summary(aov_all)
-
-dunnette_all <- multcomp::glht(aov_all,
-                          linfct = multcomp::mcp(treatment = 
-                                                   c("Recommendation - Control = 0",
-                                                     "Stock - Control = 0",
-                                                     "Cost - Control = 0",
-                                                     "Benefit - Control = 0"))) %>% 
-  summary()
-
-dunnette_all
 
 ```
 
