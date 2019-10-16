@@ -220,18 +220,21 @@ tibble(treatments = c("Recommendation", "Stock", "Cost", "Benefit")) %>%
   mutate(p.values = map_dbl(treatments, 
                             ~{provide_p_value_MWW(data = flu_data %>% filter(certainty <= 3),
                                                   treatment_filter = .)})) %>% 
-  mutate(fdr_adjusted = p.adjust(p.values, method = "fdr"))
-
-tibble(treatments = c("Recommendation", "Stock", "Cost", "Benefit")) %>% 
+  mutate(respondents = "uncertain") %>% 
+  bind_rows(
+    tibble(treatments = c("Recommendation", "Stock", "Cost", "Benefit")) %>% 
   mutate(p.values = map_dbl(treatments, 
                             ~{provide_p_value_MWW(data = flu_data %>% filter(certainty >= 4),
                                                   treatment_filter = .)})) %>% 
-  mutate(fdr_adjusted = p.adjust(p.values, method = "fdr"))
-
-tibble(treatments = c("Recommendation", "Stock", "Cost", "Benefit")) %>% 
-  mutate(p.values = map_dbl(treatments, 
-                            ~{provide_p_value_MWW(data = flu_data,
-                                                  treatment_filter = .)})) %>% 
+  mutate(respondents = "certain")
+  ) %>% 
+  bind_rows(
+    tibble(treatments = c("Recommendation", "Stock", "Cost", "Benefit")) %>% 
+      mutate(p.values = map_dbl(treatments, 
+                                ~{provide_p_value_MWW(data = flu_data,
+                                                      treatment_filter = .)})) %>% 
+      mutate(respondents = "overall")
+  ) %>% 
   mutate(fdr_adjusted = p.adjust(p.values, method = "fdr"))
 
 ```
