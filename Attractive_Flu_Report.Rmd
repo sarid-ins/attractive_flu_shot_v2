@@ -477,3 +477,108 @@ cor(history_vs_certainty %>%
       select(five_years_vaccinations, certainty, certainty_3_levels, vaccination_history)) %>% 
   knitr::kable()
 ```
+
+# Additional requests for supplementary materials/appendix
+
+A comparison table per certainty level (like table 3 but without the grouping of certainty to just two levels)
+
+```{r comparison per certainty level 1-5}
+flu_data %>% 
+  group_by(treatment, certainty) %>% 
+  summarize(prop_vaccinated = mean(action_binary),
+            vaccinated_abs = sum(action_binary),
+            total_cell = n()) %>% 
+  mutate(tbl_val = paste0(round(prop_vaccinated*100, 1), "% (", vaccinated_abs, "/", total_cell, ")")) %>% 
+  select(treatment, certainty, tbl_val) %>% 
+  spread(treatment, tbl_val) %>% 
+  knitr::kable()
+```
+
+The Mann-Witney-Wilcoxon test per certainty level
+
+```{r mww per certainty level}
+provide_p_value_MWW_certainty <- function(data, treatment_filter, certainty_filter){
+  tmp <- data %>% 
+    filter(certainty == certainty_filter) %>% 
+    filter(treatment %in% c("Control", treatment_filter)) %>% 
+    wilcox.test(formula = action_binary ~ treatment, data = .)
+  
+  tmp$p.value
+}
+
+crossing(treatments = c("Recommendation", "Stock", "Cost", "Benefit"),
+         certainty = 1:5) %>% 
+  mutate(p.values = map2_dbl(treatments, certainty,
+                             ~{provide_p_value_MWW_certainty(data = flu_data, 
+                                                             treatment_filter = .x, 
+                                                             certainty_filter =.y)})) %>% 
+  mutate(fdr_adjusted = p.adjust(p.values, method = "fdr")) %>% 
+  knitr::kable(format = "markdown")
+```
+
+## Regression without grouping of certainty levels
+
+```{r regression with original cerainty levels}
+
+vaccination_glm_certain_lvls1 <- glm(data = flu_data_for_glm, family = binomial, 
+                                    formula = action_binary ~ treatment + certainty + treatment*certainty)
+
+# summary(vaccination_glm_certain_lvls1)
+
+vaccination_glm_certain_lvls2 <- glm(data = flu_data_for_glm, family = binomial, 
+                                    formula = action_binary ~ treatment + certainty + treatment*(certainty) +
+                                      last_year_vaccination + gender + age + income + education)
+
+# summary(vaccination_glm_certain_lvls2)
+
+# stargazer::stargazer(vaccination_glm_certain_lvls1, vaccination_glm_certain_lvls2)
+
+```
+
+## Effect of monetary incentives as a function of income levels
+
+Is there an effect of income on the increased costs or the benefit treatments?
+
+```{r income effect}
+
+flu_attraction_income <- flu_data %>% 
+  # filter(treatment %in% c("Control", "Cost", "Benefit")) %>% 
+  select(treatment, action_binary, income) %>% 
+  filter(income != "(Missing)") %>% 
+  mutate(income = recode_factor(income, 
+                                "Under" = "Under",
+                                "Slightly under" = "Under",
+                                "Average" = "Average",
+                                "Slightly above" = "Above",
+                                "Above" = "Above"))
+
+flu_attraction_income %>% 
+  group_by(treatment, income) %>% 
+  summarize(vaccination_intentions = mean(action_binary)) %>% 
+  pivot_wider(names_from = treatment, values_from = vaccination_intentions) %>% 
+  rename(Income = income) %>% 
+  mutate_if(is.numeric, ~paste0(round(.*100), "%")) %>% 
+  knitr::kable(format = "latex", booktabs = TRUE)
+
+
+provide_p_value_MWW_income <- function(data, treatment_filter, income_filter){
+  tmp <- data %>% 
+    filter(income == income_filter) %>% 
+    filter(treatment %in% c("Control", treatment_filter)) %>% 
+    wilcox.test(formula = action_binary ~ treatment, data = .)
+  
+  tmp$p.value
+}
+
+
+crossing(treatments = c("Recommendation", "Stock", "Cost", "Benefit"),
+         income = c("Under", "Average", "Above")) %>% 
+  mutate(p.values = map2_dbl(treatments, income,
+                             ~{provide_p_value_MWW_income(data = flu_data, 
+                                                             treatment_filter = .x, 
+                                                             income_filter =.y)})) %>% 
+  mutate(fdr_adjusted = p.adjust(p.values, method = "fdr")) %>% 
+  knitr::kable(format = "latex", booktabs = TRUE)
+
+
+```
