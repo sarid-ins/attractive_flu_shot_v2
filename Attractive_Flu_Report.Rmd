@@ -520,13 +520,17 @@ crossing(treatments = c("Recommendation", "Stock", "Cost", "Benefit"),
 
 ```{r regression with original cerainty levels}
 
-vaccination_glm_certain_lvls1 <- glm(data = flu_data_for_glm, family = binomial, 
-                                    formula = action_binary ~ treatment + certainty + treatment*certainty)
+vaccination_glm_certain_lvls1 <- glm(data = flu_data_for_glm %>% 
+                                       mutate(uncertainty = -certainty), 
+                                     family = binomial, 
+                                    formula = action_binary ~ treatment + uncertainty + treatment*uncertainty)
 
 # summary(vaccination_glm_certain_lvls1)
 
-vaccination_glm_certain_lvls2 <- glm(data = flu_data_for_glm, family = binomial, 
-                                    formula = action_binary ~ treatment + certainty + treatment*(certainty) +
+vaccination_glm_certain_lvls2 <- glm(data = flu_data_for_glm %>% 
+                                       mutate(uncertainty = -certainty), 
+                                     family = binomial, 
+                                    formula = action_binary ~ treatment + uncertainty + treatment*(uncertainty) +
                                       last_year_vaccination + gender + age + income + education)
 
 # summary(vaccination_glm_certain_lvls2)
@@ -580,5 +584,36 @@ crossing(treatments = c("Recommendation", "Stock", "Cost", "Benefit"),
   mutate(fdr_adjusted = p.adjust(p.values, method = "fdr")) %>% 
   knitr::kable(format = "latex", booktabs = TRUE)
 
+
+```
+
+## Percent of vaccinated last year crosstabulated with certainty level
+
+```{r vaccinated last year vs certainty}
+
+flu_data %>% 
+  group_by(certainty) %>% 
+  summarize(percent_vaccinated_last_year = mean(last_year_vaccination, na.rm = T)) %>% 
+  knitr::kable(format = "markdown")
+
+cor(flu_data$certainty, flu_data$last_year_vaccination, use = "pairwise.complete.obs")
+
+flu_data %>% 
+  group_by(certainty) %>% 
+  saridr::prop(certainty, five_years_vaccinations, leave_n = T) %>% 
+  rename(n = n4prop) %>% 
+  pivot_wider(names_from = five_years_vaccinations, values_from = c(n, prop)) %>% 
+  knitr::kable(format = "markdown")
+
+
+flu_data %>% 
+  ggplot(aes(x = factor(certainty), fill = factor(five_years_vaccinations))) + 
+  geom_bar(position = "fill", color = "black") + 
+  theme_bw() + 
+  scale_fill_brewer() + 
+  scale_y_continuous(labels = scales::percent) + 
+  ylab("Population proportion") + 
+  xlab("Certainty level") + 
+  guides(fill = guide_legend("Vaccination in\npast five years"))
 
 ```
