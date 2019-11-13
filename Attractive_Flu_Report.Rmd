@@ -324,7 +324,7 @@ A logistic regression model of intentions to receive the vaccination.
 
 flu_data_for_glm <- flu_data %>% 
   # mutate(treatment = fct_relevel(treatment, "Control", after = 4)) %>% 
-  mutate(certain = certainty >= 3)
+  mutate(certain = certainty >= 4)
 
 vaccination_glm0 <- glm(data = flu_data_for_glm, family = binomial, 
                         formula = action_binary ~ treatment)
@@ -336,7 +336,8 @@ The same model, with interaction of traetment*certainty
 
 ```{r logistic regression with uncertain interaction}
 
-vaccination_glm1 <- glm(data = flu_data_for_glm, family = binomial, 
+vaccination_glm1 <- glm(data = flu_data_for_glm, 
+                        family = binomial, 
                         formula = action_binary ~ treatment + certain + treatment*certain)
 
 summary(vaccination_glm1)
@@ -360,10 +361,10 @@ The code to generate a stargazer latex table.
 
 ```{r regression output}
 ## Disable/enable according to need.
-# stargazer::stargazer(vaccination_glm0,
-#                      vaccination_glm1,
-#                      vaccination_glm2,
-#                      type = "latex")
+stargazer::stargazer(vaccination_glm0,
+                     vaccination_glm1,
+                     vaccination_glm2,
+                     type = "latex")
 
 ```
 
@@ -547,7 +548,7 @@ crossing(treatments = c("Recommendation", "Stock", "Cost", "Benefit"),
 
 vaccination_glm_certain_lvls1 <- glm(data = flu_data_for_glm %>% 
                                        mutate(certainty = certainty - 1), 
-                                     family = binomial, 
+                                     family = binomial,
                                     formula = action_binary ~ treatment + certainty + treatment*certainty)
 
 # summary(vaccination_glm_certain_lvls1)
