@@ -659,8 +659,9 @@ get_chisq_pval <- function(certainty_level){
   tmp$p.value
 }
 
-certainty_chisq <- tibble(certainty_level = 1:5) %>% 
+certainty_chisq <- tibble(certainty_level = list(1,2,3,4,5, 1:5, 1:3, 4:5)) %>% 
   mutate(p.value = map_dbl(.x = certainty_level, .f = get_chisq_pval)) %>% 
-  mutate(p.value.fdr = p.adjust(p.value, method = "fdr"))
+  mutate(p.value.fdr = p.adjust(p.value, method = "fdr")) %>% 
+  mutate(certainty_level = as.character(certainty_level))
 
 ```
