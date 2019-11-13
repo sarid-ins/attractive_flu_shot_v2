@@ -657,12 +657,38 @@ get_chisq_pval <- function(certainty_level){
     as.matrix() %>% 
     chisq.test()
   
-  tmp$p.value
+  tibble(p.val = tmp$p.value, chi_sq = tmp$statistic)
 }
 
-certainty_chisq <- tibble(certainty_level = list(1,2,3,4,5, 1:5, 1:3, 4:5)) %>% 
-  mutate(p.value = map_dbl(.x = certainty_level, .f = get_chisq_pval)) %>% 
-  mutate(p.value.fdr = p.adjust(p.value, method = "fdr")) %>% 
-  mutate(certainty_level = as.character(certainty_level))
+certainty_chisq <- list(1,2,3,4,5, 1:5, 1:3, 4:5) %>% 
+  map_df(.f = get_chisq_pval) %>% 
+  mutate(p.value.fdr = p.adjust(p.val, method = "fdr")) %>% 
+  mutate(certainty_level = as.character(list(1,2,3,4,5, 1:5, 1:3, 4:5)))
+
+```
+
+# Proportion test for the effect of each treatment versus control
+
+```{r proportion test}
+
+compute_prop_test <- function(treatment_str, certainty_lvl){
+  tmp <- flu_data %>% 
+    filter(treatment %in% c("Control", treatment_str)) %>% 
+    filter(certainty %in% certainty_lvl) %>% 
+    group_by(treatment) %>% 
+    summarize(successes = sum(action_binary),
+              total = n())
+  
+  binom.test(tmp$successes, tmp$total)
+  
+}
+
+run_prop_tests <- crossing(certainty_levels = list(1,2,3,4,5, 1:3, 4:5),
+                           treatments = c("Recommendation", "Stock", "Cost", "Benefit")) %>% 
+  mutate(test_res = map2(treatments, certainty_levels, compute_prop_test)) %>% 
+  mutate(test_pval = map_dbl(test_res, ~{.$p.value})) %>% 
+  mutate(certainty_levels = as.character(certainty_levels)) %>% 
+  select(-test_res) %>% 
+  mutate(test_pval_fdr = p.adjust(test_pval, "fdr"))
 
 ```
