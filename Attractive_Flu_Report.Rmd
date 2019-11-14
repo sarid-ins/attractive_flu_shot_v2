@@ -591,23 +591,29 @@ flu_attraction_income %>%
   knitr::kable(format = "latex", booktabs = TRUE)
 
 
-provide_p_value_MWW_income <- function(data, treatment_filter, income_filter){
+provide_p_value_chisq_income <- function(data, treatment_filter, income_filter){
   tmp <- data %>% 
     filter(income == income_filter) %>% 
     filter(treatment %in% c("Control", treatment_filter)) %>% 
-    wilcox.test(formula = action_binary ~ treatment, data = .)
+    count(income, treatment, action_binary) %>% 
+    select(-income) %>% 
+    pivot_wider(names_from = action_binary, values_from = n) %>% 
+    select(-treatment) %>% 
+    as.matrix() %>% 
+    chisq.test()
   
-  tmp$p.value
+  tibble(p.value = tmp$p.value, chisq = tmp$statistic)
 }
 
 
 crossing(treatments = c("Recommendation", "Stock", "Cost", "Benefit"),
          income = c("Under", "Average", "Above")) %>% 
-  mutate(p.values = map2_dbl(treatments, income,
-                             ~{provide_p_value_MWW_income(data = flu_data, 
+  mutate(p.values = map2(treatments, income,
+                             ~{provide_p_value_chisq_income(data = flu_data, 
                                                              treatment_filter = .x, 
                                                              income_filter =.y)})) %>% 
-  mutate(fdr_adjusted = p.adjust(p.values, method = "fdr")) %>% 
+  unnest() %>% 
+  mutate(fdr_adjusted = p.adjust(p.value, method = "fdr")) %>% 
   knitr::kable(format = "latex", booktabs = TRUE)
 
 
