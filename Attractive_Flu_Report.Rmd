@@ -616,6 +616,27 @@ crossing(treatments = c("Recommendation", "Stock", "Cost", "Benefit"),
   mutate(fdr_adjusted = p.adjust(p.value, method = "fdr")) %>% 
   knitr::kable(format = "latex", booktabs = TRUE)
 
+# overall chisquare per each income level considering all treatments
+
+chi_square_goodness_of_fit_income <- function(income_lvl){
+  tmp <- flu_attraction_income %>% 
+    filter(income %in% income_lvl) %>%  
+    count(treatment, action_binary) %>% 
+    pivot_wider(names_from = action_binary, values_from = n) %>% 
+    select(2:3) %>% 
+    as.matrix() %>% 
+    chisq.test()
+  
+  tibble(p_val = tmp$p.value, chi = tmp$statistic)
+  
+}
+
+chi_goodness_income <- tibble(income_lvl = c("Under", "Average", "Above")) %>% 
+  mutate(chi_sq = map(income_lvl, chi_square_goodness_of_fit_income)) %>% 
+  unnest(chi_sq) %>% 
+  mutate(p_fd_adj = p.adjust(p_val, "fdr"))
+
+#knitr::kable(chi_goodness_income, format = "markdown")
 
 ```
 
