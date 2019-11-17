@@ -413,8 +413,10 @@ We check for the following inconsistencies:
 ```{r validation check}
 
 flu_data %>% 
-  filter(last_year_vaccine == 1 & five_years_vaccinations == 0 | 
-           last_year_vaccination == 0 & five_years_vaccinations == 5)
+  filter(last_year_vaccination == 1 & five_years_vaccinations == 0 | 
+           last_year_vaccination == 0 & five_years_vaccinations == 5) %>% 
+  select(id, started, submitted, status, treatment, open_ended_action_explanation,
+         certainty, last_year_vaccination, five_years_vaccinations)
 
 ```
 
