@@ -167,7 +167,7 @@ intentions_for_plot <- flu_data %>%
 
 ```
 
-# Using Chi square test to examine the independence of the intervention vs. intentions to vaccinate
+# Using Chi square test to examine the independence of the treatments effectiveness per certainty level (certain/uncertain)
 
 ```{r pearson chi sq}
 
@@ -187,7 +187,14 @@ chisq2 <- flu_data %>%
   as.matrix() %>% 
   chisq.test()
 
-p.adjust(p = c(chisq1$p.value, chisq2$p.value), method = "fdr")
+chisq_overall <- flu_data %>% 
+  count(treatment, action_binary) %>% 
+  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n, values_fill = list(n=0)) %>% 
+  column_to_rownames(var = "treatment") %>% 
+  as.matrix() %>% 
+  chisq.test()
+
+p_value_test1_for_fdr <- c(chisq1$p.value, chisq2$p.value, chisq_overall$p.value)
 
 
 ```
@@ -313,10 +320,12 @@ get_chisq_pval <- function(certainty_level){
 
 certainty_chisq <- list(1,2,3,4,5) %>% 
   map_df(.f = get_chisq_pval) %>% 
-  mutate(p.value.fdr = p.adjust(p.val, method = "fdr")) %>% 
   mutate(certainty_level = as.character(list(1,2,3,4,5)))
 
-certainty_chisq
+p_value_test2_for_fdr <- certainty_chisq$p.val
+
+
+
 
 ```
 
@@ -384,10 +393,11 @@ chi_square_goodness_of_fit_income <- function(income_lvl){
 
 chi_goodness_income <- tibble(income_lvl = c("Under", "Average", "Above")) %>% 
   mutate(chi_sq = map(income_lvl, chi_square_goodness_of_fit_income)) %>% 
-  unnest(chi_sq) %>% 
-  mutate(p_fd_adj = p.adjust(p_val, "fdr"))
+  unnest(chi_sq)
 
 chi_goodness_income
+
+p_value_test3_for_fdr <- chi_goodness_income$p_val
 
 #knitr::kable(chi_goodness_income, format = "markdown")
 
@@ -427,6 +437,19 @@ open_ended %>%
 
 flu_data %>% saridr::prop(age_group, leave_n = T)
   
+```
+
+# False Discovery Rate correction for the 11 comparisons of treatment effect
+
+```{r fdr corrections}
+
+tibble(original_p_value = c(p_value_test1_for_fdr,
+                            p_value_test2_for_fdr,
+                            p_value_test3_for_fdr)) %>% 
+  mutate(fdr_adjusted_p_value = p.adjust(original_p_value,
+                                         method = "fdr"))
+
+
 ```
 
 # Additional materials (only mentioned in the paper)
