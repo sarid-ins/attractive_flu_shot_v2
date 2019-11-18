@@ -420,7 +420,7 @@ flu_data %>%
 
 ```
 
-There are only 3 such inconsistencies, after reading their open-ended action explanation, they all seem to be answering seriously, so we decided to keep them.
+There are only 12 such inconsistencies, after reading their open-ended action explanation, they all seem to be answering seriously, so we decided to keep them.
 
 ## Open ended content analysis - detection of spam
 
