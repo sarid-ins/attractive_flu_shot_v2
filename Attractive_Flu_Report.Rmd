@@ -199,6 +199,44 @@ p_value_test1_for_fdr <- c(chisq1$p.value, chisq2$p.value, chisq_overall$p.value
 
 ```
 
+# Using Chi square test to examine the independence of the treatments effectiveness per number of vaccinations over the last 5 years
+
+```{r pearson chi sq}
+
+chisq3 <- flu_data %>% 
+  filter(five_years_vaccinations == 0) %>% 
+  count(treatment, action_binary) %>% 
+  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n, values_fill = list(n=0)) %>% 
+  column_to_rownames(var = "treatment") %>% 
+  as.matrix() %>% 
+  chisq.test()
+
+chisq4 <- flu_data %>% 
+  filter(five_years_vaccinations == 1) %>% 
+  count(treatment, action_binary) %>% 
+  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n, values_fill = list(n=0)) %>% 
+  column_to_rownames(var = "treatment") %>% 
+  as.matrix() %>% 
+  chisq.test()
+
+chisq5 <- flu_data %>% 
+  filter(five_years_vaccinations >= 2) %>% 
+  count(treatment, action_binary) %>% 
+  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n, values_fill = list(n=0)) %>% 
+  column_to_rownames(var = "treatment") %>% 
+  as.matrix() %>% 
+  chisq.test()
+
+chisq9 <- flu_data %>% 
+  count(treatment, action_binary) %>% 
+  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n, values_fill = list(n=0)) %>% 
+  column_to_rownames(var = "treatment") %>% 
+  as.matrix() %>% 
+  chisq.test()
+
+
+```
+
 ## Logistic regression of intentions to vaccinate (Table 4)
 
 A logistic regression model of intentions to receive the vaccination.
@@ -256,19 +294,25 @@ stargazer::stargazer(vaccination_glm0,
 ```{r treatment by vaccination history}
 total_vaccinated <- flu_data %>% 
   group_by(treatment) %>% 
-  summarize(tot_vaccinated = mean(action_binary)) %>% 
-  spread(treatment, tot_vaccinated) %>% 
-  mutate(five_years_vaccinations = NA)
+  summarize(tot_vaccinated = mean(action_binary),
+            sample_size = n()) %>% 
+  mutate(prop_vaccinated_str = paste0(round(tot_vaccinated*100), "% (",
+                                      tot_vaccinated*sample_size,"/", sample_size,")")) %>% 
+  select(treatment, prop_vaccinated_str) %>% 
+  spread(treatment, prop_vaccinated_str) %>% 
+  mutate(five_years_vaccinations = "Overall") 
 
 flu_data %>% 
   group_by(treatment, five_years_vaccinations) %>% 
-  summarize(prop_vaccinated = mean(action_binary)) %>% 
-  spread(treatment, prop_vaccinated) %>% 
+  summarize(prop_vaccinated = mean(action_binary),
+            sample_size = n()) %>% 
+  mutate(prop_vaccinated_str = paste0(round(prop_vaccinated*100), "% (",
+                                      prop_vaccinated*sample_size,"/", sample_size,")")) %>% 
+  select(-prop_vaccinated, -sample_size) %>% 
+  spread(treatment, prop_vaccinated_str) %>% 
+  mutate(five_years_vaccinations = as.character(five_years_vaccinations)) %>% 
   bind_rows(total_vaccinated) %>% 
-  mutate_at(vars(2:6), ~paste0(round(.*100), "%")) %>% 
-  knitr::kable()
-  
-
+  knitr::kable(format = "latex")
 ```
 
 ## Open ended question - content analysis
@@ -551,20 +595,27 @@ summary(certainty_ordinal_regression)
 
 ```
 
-## Ordinal regression of vaccination intentions versus treatments
+TODO: Provide as a table and add p-value.
 
-```{r ordinal regression intentions}
+## Multinomial regression of vaccination intentions versus treatments
 
-flu_olr <- flu_data %>%
+We treat the action states: no vaccination, late vaccination, and early vaccinations in a multinomial logistic regression framework.
+
+```{r multinomial regression intentions}
+
+flu_multi_action <- flu_data %>%
   filter(treatment != "Control") %>% 
   mutate(action_recoded = factor(action_recoded,
                                  levels = c("not_vaccinate", "vaccinate_late", "vaccinate_early"))) %>% 
   mutate(treatment = droplevels(treatment))
 
-intentions_olr <- MASS::polr(data = flu_olr, 
-                             formula = action_recoded ~ treatment)
-intentions_olr
+nnet::multinom(formula = action_recoded ~ treatment,
+               data = flu_multi_action) %>% 
+  summary()
+
 ```
+
+TODO: arrange in table + provide a hypothsis test.
 
 ## Addition - correlation coefficient of vaccination history versus certainty
 
