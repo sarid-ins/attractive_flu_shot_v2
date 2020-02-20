@@ -593,7 +593,23 @@ certainty_ordinal_regression <-
 
 summary(certainty_ordinal_regression)
 
+# a latex table with the coefficients
+ord_log <- summary(certainty_ordinal_regression)$coefficients %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  rename(variable = rowname) %>% 
+  mutate(p_value = dt(`t value`, df = NROW(flu_data) - 8))
+
+# knitr::kable(ord_log, format = "latex", booktabs = T, digits = 2)
 ```
+
+The ordinal logistic equation assumes the following model:
+
+$$\zeta_0=-\infty<\zeta_1<\ldots<\zeta_5<\zeta_6=\infty$$
+
+With:
+
+$$\operatorname{logit}P(Y\leq k|x)=\zeta_k-\eta x$$
 
 TODO: Provide as a table and add p-value.
 
