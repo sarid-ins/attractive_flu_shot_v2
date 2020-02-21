@@ -234,7 +234,6 @@ chisq9 <- flu_data %>%
   as.matrix() %>% 
   chisq.test()
 
-
 ```
 
 ## Logistic regression of intentions to vaccinate (Table 4)
@@ -263,6 +262,57 @@ vaccination_glm1 <- glm(data = flu_data_for_glm,
 
 summary(vaccination_glm1)
 
+# instead of five year vaccination - also check last year vaccination
+
+vaccination_glm1_mod <- glm(data = flu_data_for_glm, 
+                        family = binomial, 
+                        formula = action_binary ~ treatment + last_year_vaccination + treatment*last_year_vaccination)
+
+summary(vaccination_glm1_mod)
+
+```
+
+We would like to compare the difference between the Cost treatment coefficient to the Recommendation treatment coefficient, in order to see if the cost is significantly stronger than the recommendation (within the regression model).
+
+```{r coefficient comparison}
+
+# recommendation - cost
+rec_min_cost <- vaccination_glm1$coefficients[2] - vaccination_glm1$coefficients[4]
+
+rec_min_cost
+# var(recommendation - cost) = var(recommendation) + var(cost) - 2*cov(recommendation, cost)
+
+vcov_glm1 <- vcov(vaccination_glm1)
+rec_min_cost_std_err <- sqrt(
+  vcov_glm1[2, 2] + vcov_glm1[4, 4] - 2*vcov_glm1[2, 4]
+)
+
+rec_min_cost_std_err
+
+# compute the significance (p-value)
+
+z_diff <- (rec_min_cost / rec_min_cost_std_err)
+p_diff <- 2*(1-pnorm(abs(z_diff), 0, 1))
+
+p_diff
+
+```
+
+In addition to the previous test, we also compare the difference between proportions directly.
+
+```{r recommendation versus cost vaccination proportions test}
+
+trials <- flu_data %>% 
+  filter(treatment %in% c("Recommendation",
+                          "Cost")) %>% 
+  count(treatment, action_binary) %>% 
+  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n) %>% 
+  mutate(total = `0`+`1`) %>% 
+  rename(successes = `1`) %>% 
+  select(-`0`)
+
+prop.test(x = trials$successes, n = trials$total, correct = T)
+
 ```
 
 A complete model including background demographic variables and vaccinated last.
@@ -275,6 +325,30 @@ vaccination_glm2 <- glm(data = flu_data_for_glm, family = binomial,
                           gender + age + income + education)
 
 summary(vaccination_glm2)
+
+```
+
+```{r coefficient comparison with all controls}
+
+# recommendation - cost
+rec_min_cost <- vaccination_glm2$coefficients[2] - vaccination_glm2$coefficients[4]
+
+rec_min_cost
+# var(recommendation - cost) = var(recommendation) + var(cost) - 2*cov(recommendation, cost)
+
+vcov_glm2 <- vcov(vaccination_glm2)
+rec_min_cost_std_err <- sqrt(
+  vcov_glm2[2, 2] + vcov_glm2[4, 4] - 2*vcov_glm2[2, 4]
+)
+
+rec_min_cost_std_err
+
+# compute the significance (p-value)
+
+z_diff <- (rec_min_cost / rec_min_cost_std_err)
+p_diff <- 2*(1-pnorm(abs(z_diff), 0, 1))
+
+p_diff
 
 ```
 
@@ -598,7 +672,7 @@ ord_log <- summary(certainty_ordinal_regression)$coefficients %>%
   as.data.frame() %>% 
   rownames_to_column() %>% 
   rename(variable = rowname) %>% 
-  mutate(p_value = dt(`t value`, df = NROW(flu_data) - 8))
+  mutate(p_value = 2*(1-pt(abs(`t value`), df = NROW(flu_data) - 8)))
 
 # knitr::kable(ord_log, format = "latex", booktabs = T, digits = 2)
 ```
@@ -610,8 +684,6 @@ $$\zeta_0=-\infty<\zeta_1<\ldots<\zeta_5<\zeta_6=\infty$$
 With:
 
 $$\operatorname{logit}P(Y\leq k|x)=\zeta_k-\eta x$$
-
-TODO: Provide as a table and add p-value.
 
 ## Multinomial regression of vaccination intentions versus treatments
 
@@ -625,16 +697,64 @@ flu_multi_action <- flu_data %>%
                                  levels = c("not_vaccinate", "vaccinate_late", "vaccinate_early"))) %>% 
   mutate(treatment = droplevels(treatment))
 
-nnet::multinom(formula = action_recoded ~ treatment,
+multinom_res <- nnet::multinom(formula = action_recoded ~ treatment,
                data = flu_multi_action) %>% 
   summary()
 
+# significance test
+
+z_multinom <- multinom_res$coefficients/multinom_res$standard.errors
+p_multinom <- (1 - pnorm(abs(z), 0, 1))*2
+
+#Nice table with coefficients per model and std. err and p-values.
+
+multinom_tbl <- tibble(
+  variable = colnames(multinom_res$coefficients),
+  late_coeff = multinom_res$coefficients[1,],
+  late_stderr = multinom_res$standard.errors[1,],
+  late_z = z_multinom[1,],
+  late_p_val = p_multinom[1,],
+  early_coeff = multinom_res$coefficients[2,],
+  early_stderr = multinom_res$standard.errors[2,],
+  early_z = z_multinom[2,],
+  early_p_val = p_multinom[2,]
+)
+
+#knitr::kable(multinom_tbl, format = "latex", booktabs = T)
+
 ```
 
-TODO: arrange in table + provide a hypothsis test.
+
 
 ## Addition - correlation coefficient of vaccination history versus certainty
 
 ```{r vaccination history vs certainty}
 cor(flu_data$five_years_vaccinations, flu)
+```
+
+## Late vaccinations
+
+Those who chose to vaccinate later rather than earlier - proportions overall and in each treatment group.
+
+```{r late vaccinators}
+
+flu_data %>% 
+  filter(treatment != "Control") %>% 
+  saridr::prop(action_recoded, leave_n = T)
+
+flu_data %>% 
+  group_by(treatment) %>% 
+  saridr::prop(action_recoded, leave_n = T)
+  
+```
+
+## Vaccination history: last year versus five years
+
+The correlation between five year vaccination history, and last year's vaccination
+
+```{r vaccination history correlation}
+cor(flu_data$five_years_vaccinations, flu_data$last_year_vaccination, use = "pairwise.complete.obs")
+ggplot(flu_data, aes(x = factor(five_years_vaccinations), fill = factor(last_year_vaccination))) + 
+  geom_bar(position = "fill") + 
+  theme_bw()
 ```
