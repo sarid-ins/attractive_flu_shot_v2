@@ -1,7 +1,7 @@
 ---
-title: "The Attractive Flu Shot 2019 - Summary Report"
+title: "The Attractive Flu Shot 2020 - Summary Report"
 author: "Amnon Maltz and Adi Sarid"
-date: "2019-10-07"
+date: "2020-02-24"
 output:
   html_document:
     df_print: paged
@@ -89,117 +89,33 @@ knitr::kable(demographics_latex_table, format = "markdown", booktabs = TRUE) # <
 
 ```
 
-## Certainty level distribution (Table 2)
+## Effect of treatment split by number of vaccinations in the last 5 years (Table 2)
 
-```{r certainty level}
-
-flu_data %>% 
-  saridr::prop(certainty, leave_n = T)
-
-```
-
-## Examing the level of certainty level as a function of treatment type
-
-We show the distribution of certainty level as a function of the treatment presented to the respondents. This chart did not make it into the manuscript.
-
-```{r certainty versus treatment}
-
-ggplot(flu_data, aes(certainty)) + 
-  geom_histogram(bins = 5) + 
-  facet_wrap(~treatment)
-
-```
-
-We want to make sure that the treatment type did not affect the reported certainty level, via $\chi^2$ test.
-
-```{r certainty distribution versus treatment}
-flu_data %>% 
-  count(treatment, certainty) %>% 
-  pivot_wider(id_cols = treatment, names_from = certainty, values_from = n, values_fill = list(n=0)) %>% 
-  column_to_rownames(var = "treatment") %>% 
-  as.matrix() %>% 
-  chisq.test()
-```
-
-## Effect of treatment split by certain/uncertain (Table 3) 
-
-The table compares the effect of the treatment by certainty level.
-
-```{r treatment by certainty}
+```{r treatment by vaccination history}
 total_vaccinated <- flu_data %>% 
   group_by(treatment) %>% 
-  summarize(tot_vaccinated = mean(action_binary)) %>% 
-  spread(treatment, tot_vaccinated) %>% 
-  mutate(certainty = NA)
+  summarize(tot_vaccinated = mean(action_binary),
+            sample_size = n()) %>% 
+  mutate(prop_vaccinated_str = paste0(round(tot_vaccinated*100), "% (",
+                                      tot_vaccinated*sample_size,"/", sample_size,")")) %>% 
+  select(treatment, prop_vaccinated_str) %>% 
+  spread(treatment, prop_vaccinated_str) %>% 
+  mutate(five_years_vaccinations = "Overall") 
 
-# Splitting the certainty to two levels (<=3 versus >=4)
 flu_data %>% 
-  mutate(certainty_binary = certainty <= 3) %>% 
-  group_by(treatment, certainty_binary) %>% 
+  group_by(treatment, five_years_vaccinations) %>% 
   summarize(prop_vaccinated = mean(action_binary),
-            vaccinated_abs = sum(action_binary),
-            total_cell = n()) %>% 
-  mutate(tbl_val = paste0(round(prop_vaccinated*100, 1), "% (", vaccinated_abs, "/", total_cell, ")")) %>% 
-  select(treatment, certainty_binary, tbl_val) %>% 
-  spread(treatment, tbl_val) %>% 
-  mutate(certainty_binary = ifelse(certainty_binary, "Uncertain", "Certain")) %>% 
-  knitr::kable()
-
-# figure of vaccinations
-intentions_for_plot <- flu_data %>%
-  mutate(Certainty = case_when(certainty <= 3 ~ "Uncertain",
-                               certainty >= 4 ~ "Certain")) %>% 
-  group_by(treatment, Certainty) %>% 
-  summarize(Vaccine_next_year = mean(action_binary),
-            Vaccin_next_year_sd = sd(action_binary),
-            successes = sum(action_binary),
-            trials = n()) %>% 
-  group_by(treatment, Certainty, Vaccine_next_year, Vaccin_next_year_sd) %>% 
-  nest() %>% 
-  mutate(confint = map(data, ~{
-    propres <- prop.test(.$successes, .$trials)
-    tibble(lb = propres$conf.int[1], ub = propres$conf.int[2])
-  })) %>% 
-  select(-data) %>% 
-  unnest(cols = confint) %>% 
-  mutate(vaccin_next_sd_minus = Vaccine_next_year - Vaccin_next_year_sd,
-         vaccin_next_sd_plus = Vaccine_next_year + Vaccin_next_year_sd)
-
+            sample_size = n()) %>% 
+  mutate(prop_vaccinated_str = paste0(round(prop_vaccinated*100), "% (",
+                                      prop_vaccinated*sample_size,"/", sample_size,")")) %>% 
+  select(-prop_vaccinated, -sample_size) %>% 
+  spread(treatment, prop_vaccinated_str) %>% 
+  mutate(five_years_vaccinations = as.character(five_years_vaccinations)) %>% 
+  bind_rows(total_vaccinated) %>% 
+  knitr::kable(format = "latex")
 ```
 
-# Using Chi square test to examine the independence of the treatments effectiveness per certainty level (certain/uncertain)
-
-```{r pearson chi sq}
-
-chisq1 <- flu_data %>% 
-  filter(certainty >= 4) %>% 
-  count(treatment, action_binary) %>% 
-  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n, values_fill = list(n=0)) %>% 
-  column_to_rownames(var = "treatment") %>% 
-  as.matrix() %>% 
-  chisq.test()
-
-chisq2 <- flu_data %>% 
-  filter(certainty <= 3) %>% 
-  count(treatment, action_binary) %>% 
-  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n, values_fill = list(n=0)) %>% 
-  column_to_rownames(var = "treatment") %>% 
-  as.matrix() %>% 
-  chisq.test()
-
-chisq_overall <- flu_data %>% 
-  count(treatment, action_binary) %>% 
-  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n, values_fill = list(n=0)) %>% 
-  column_to_rownames(var = "treatment") %>% 
-  as.matrix() %>% 
-  chisq.test()
-
-p_value_test1_for_fdr <- c(chisq1$p.value, chisq2$p.value, chisq_overall$p.value)
-
-
-```
-
-# Using Chi square test to examine the independence of the treatments effectiveness per number of vaccinations over the last 5 years
+## Using Chi square test to examine the independence of the treatments effectiveness per number of vaccinations over the last 5 years
 
 ```{r pearson chi sq}
 
@@ -236,7 +152,7 @@ chisq9 <- flu_data %>%
 
 ```
 
-## Logistic regression of intentions to vaccinate (Table 4)
+## Logistic regression of intentions to vaccinate (Table 3)
 
 A logistic regression model of intentions to receive the vaccination.
 
@@ -255,69 +171,16 @@ summary(vaccination_glm0)
 The same model, with interaction of traetment*certainty
 
 ```{r logistic regression with uncertain interaction}
-
 vaccination_glm1 <- glm(data = flu_data_for_glm, 
                         family = binomial, 
                         formula = action_binary ~ treatment + five_years_vaccinations + treatment*five_years_vaccinations)
 
 summary(vaccination_glm1)
-
-# instead of five year vaccination - also check last year vaccination
-
-vaccination_glm1_mod <- glm(data = flu_data_for_glm, 
-                        family = binomial, 
-                        formula = action_binary ~ treatment + last_year_vaccination + treatment*last_year_vaccination)
-
-summary(vaccination_glm1_mod)
-
-```
-
-We would like to compare the difference between the Cost treatment coefficient to the Recommendation treatment coefficient, in order to see if the cost is significantly stronger than the recommendation (within the regression model).
-
-```{r coefficient comparison}
-
-# recommendation - cost
-rec_min_cost <- vaccination_glm1$coefficients[2] - vaccination_glm1$coefficients[4]
-
-rec_min_cost
-# var(recommendation - cost) = var(recommendation) + var(cost) - 2*cov(recommendation, cost)
-
-vcov_glm1 <- vcov(vaccination_glm1)
-rec_min_cost_std_err <- sqrt(
-  vcov_glm1[2, 2] + vcov_glm1[4, 4] - 2*vcov_glm1[2, 4]
-)
-
-rec_min_cost_std_err
-
-# compute the significance (p-value)
-
-z_diff <- (rec_min_cost / rec_min_cost_std_err)
-p_diff <- 2*(1-pnorm(abs(z_diff), 0, 1))
-
-p_diff
-
-```
-
-In addition to the previous test, we also compare the difference between proportions directly.
-
-```{r recommendation versus cost vaccination proportions test}
-
-trials <- flu_data %>% 
-  filter(treatment %in% c("Recommendation",
-                          "Cost")) %>% 
-  count(treatment, action_binary) %>% 
-  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n) %>% 
-  mutate(total = `0`+`1`) %>% 
-  rename(successes = `1`) %>% 
-  select(-`0`)
-
-prop.test(x = trials$successes, n = trials$total, correct = T)
-
 ```
 
 A complete model including background demographic variables and vaccinated last.
 
-```{r logistic regression with uncertain interaction and demography}
+```{r logistic regression with five year vaccination and demography}
 
 vaccination_glm2 <- glm(data = flu_data_for_glm, family = binomial, 
                         formula = action_binary ~ 
@@ -352,7 +215,7 @@ p_diff
 
 ```
 
-The code to generate a stargazer latex table (Table 4).
+The code to generate a stargazer latex table (Table 3).
 
 ```{r regression output}
 ## Disable/enable according to need.
@@ -363,30 +226,21 @@ stargazer::stargazer(vaccination_glm0,
 
 ```
 
-## Effect of treatment split by number of vaccinations in the last 5 years (Table 5)
+In addition to the previous test, we also compare the difference between proportions directly.
 
-```{r treatment by vaccination history}
-total_vaccinated <- flu_data %>% 
-  group_by(treatment) %>% 
-  summarize(tot_vaccinated = mean(action_binary),
-            sample_size = n()) %>% 
-  mutate(prop_vaccinated_str = paste0(round(tot_vaccinated*100), "% (",
-                                      tot_vaccinated*sample_size,"/", sample_size,")")) %>% 
-  select(treatment, prop_vaccinated_str) %>% 
-  spread(treatment, prop_vaccinated_str) %>% 
-  mutate(five_years_vaccinations = "Overall") 
+```{r recommendation versus cost vaccination proportions test}
 
-flu_data %>% 
-  group_by(treatment, five_years_vaccinations) %>% 
-  summarize(prop_vaccinated = mean(action_binary),
-            sample_size = n()) %>% 
-  mutate(prop_vaccinated_str = paste0(round(prop_vaccinated*100), "% (",
-                                      prop_vaccinated*sample_size,"/", sample_size,")")) %>% 
-  select(-prop_vaccinated, -sample_size) %>% 
-  spread(treatment, prop_vaccinated_str) %>% 
-  mutate(five_years_vaccinations = as.character(five_years_vaccinations)) %>% 
-  bind_rows(total_vaccinated) %>% 
-  knitr::kable(format = "latex")
+trials <- flu_data %>% 
+  filter(treatment %in% c("Recommendation",
+                          "Cost")) %>% 
+  count(treatment, action_binary) %>% 
+  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n) %>% 
+  mutate(total = `0`+`1`) %>% 
+  rename(successes = `1`) %>% 
+  select(-`0`)
+
+prop.test(x = trials$successes, n = trials$total, correct = T)
+
 ```
 
 ## Open ended question - content analysis
@@ -405,9 +259,59 @@ flu_data %>%
 
 ```
 
+## Multinomial regression of vaccination intentions versus treatments
+
+We treat the action states: no vaccination, late vaccination, and early vaccinations in a multinomial logistic regression framework.
+
+```{r multinomial regression intentions}
+
+flu_multi_action <- flu_data %>%
+  filter(treatment != "Control") %>% 
+  mutate(action_recoded = factor(action_recoded,
+                                 levels = c("not_vaccinate", "vaccinate_late", "vaccinate_early"))) %>% 
+  mutate(treatment = droplevels(treatment))
+
+multinom_res <- nnet::multinom(formula = action_recoded ~ treatment,
+               data = flu_multi_action) %>% 
+  summary()
+
+# significance test
+
+z_multinom <- multinom_res$coefficients/multinom_res$standard.errors
+p_multinom <- (1 - pnorm(abs(z), 0, 1))*2
+
+#Nice table with coefficients per model and std. err and p-values.
+
+multinom_tbl <- tibble(
+  variable = colnames(multinom_res$coefficients),
+  late_coeff = multinom_res$coefficients[1,],
+  late_stderr = multinom_res$standard.errors[1,],
+  late_z = z_multinom[1,],
+  late_p_val = p_multinom[1,],
+  early_coeff = multinom_res$coefficients[2,],
+  early_stderr = multinom_res$standard.errors[2,],
+  early_z = z_multinom[2,],
+  early_p_val = p_multinom[2,]
+)
+
+#knitr::kable(multinom_tbl, format = "latex", booktabs = T)
+
+```
+
+
 # Analysis provided in the supplementary material
 
 ## Supplementary material A: additional crosstabulations in higher resolution.
+
+### Certainty level distribution
+
+```{r certainty level}
+
+flu_data %>% 
+  saridr::prop(certainty, leave_n = T)
+
+```
+
 
 ### Effect of treatment by certainty level (1-5)
 
@@ -416,7 +320,7 @@ flu_data %>%
   group_by(treatment, certainty) %>%
   summarize(prop_vaccinated = mean(action_binary)) %>%
   spread(treatment, prop_vaccinated) %>%
-  bind_rows(total_vaccinated %>% select(-five_years_vaccinations)) %>%
+  # bind_rows(total_vaccinated %>% select(-five_years_vaccinations)) %>%
   knitr::kable()
 ```
 
@@ -441,15 +345,11 @@ certainty_chisq <- list(1,2,3,4,5) %>%
   mutate(certainty_level = as.character(list(1,2,3,4,5)))
 
 p_value_test2_for_fdr <- certainty_chisq$p.val
-
-
-
-
 ```
 
-### Regression without grouping of certainty levels
+### Regression with certainty as a continuous variable
 
-```{r regression with original cerainty levels}
+```{r regression with cerainty levels}
 
 vaccination_glm_certain_lvls1 <- glm(data = flu_data_for_glm %>% 
                                        mutate(certainty = certainty - 1), 
@@ -469,6 +369,37 @@ vaccination_glm_certain_lvls2 <- glm(data = flu_data_for_glm %>%
 # stargazer::stargazer(vaccination_glm_certain_lvls1, vaccination_glm_certain_lvls2)
 
 ```
+
+## Ordinal regression of certainty levels
+
+The following is a request by the associate editor.
+
+```{r ordinal regression certainty}
+
+certainty_ordinal_regression <- 
+  MASS::polr(formula = factor(certainty) ~ treatment,
+             data = flu_data, method = "logistic")
+
+summary(certainty_ordinal_regression)
+
+# a latex table with the coefficients
+ord_log <- summary(certainty_ordinal_regression)$coefficients %>% 
+  as.data.frame() %>% 
+  rownames_to_column() %>% 
+  rename(variable = rowname) %>% 
+  mutate(p_value = 2*(1-pt(abs(`t value`), df = NROW(flu_data) - 8)))
+
+# knitr::kable(ord_log, format = "latex", booktabs = T, digits = 2)
+```
+
+The ordinal logistic equation assumes the following model:
+
+$$\zeta_0=-\infty<\zeta_1<\ldots<\zeta_5<\zeta_6=\infty$$
+
+With:
+
+$$\operatorname{logit}P(Y\leq k|x)=\zeta_k-\eta x$$
+
 
 ## Supplementary material B: treatment effect by income level
 
@@ -655,77 +586,6 @@ flu_data %>%
 
 ```
 
-## Ordinal regression of certainty levels
-
-The following is a request by the associate editor.
-
-```{r ordinal regression certainty}
-
-certainty_ordinal_regression <- 
-  MASS::polr(formula = factor(certainty) ~ treatment,
-             data = flu_data, method = "logistic")
-
-summary(certainty_ordinal_regression)
-
-# a latex table with the coefficients
-ord_log <- summary(certainty_ordinal_regression)$coefficients %>% 
-  as.data.frame() %>% 
-  rownames_to_column() %>% 
-  rename(variable = rowname) %>% 
-  mutate(p_value = 2*(1-pt(abs(`t value`), df = NROW(flu_data) - 8)))
-
-# knitr::kable(ord_log, format = "latex", booktabs = T, digits = 2)
-```
-
-The ordinal logistic equation assumes the following model:
-
-$$\zeta_0=-\infty<\zeta_1<\ldots<\zeta_5<\zeta_6=\infty$$
-
-With:
-
-$$\operatorname{logit}P(Y\leq k|x)=\zeta_k-\eta x$$
-
-## Multinomial regression of vaccination intentions versus treatments
-
-We treat the action states: no vaccination, late vaccination, and early vaccinations in a multinomial logistic regression framework.
-
-```{r multinomial regression intentions}
-
-flu_multi_action <- flu_data %>%
-  filter(treatment != "Control") %>% 
-  mutate(action_recoded = factor(action_recoded,
-                                 levels = c("not_vaccinate", "vaccinate_late", "vaccinate_early"))) %>% 
-  mutate(treatment = droplevels(treatment))
-
-multinom_res <- nnet::multinom(formula = action_recoded ~ treatment,
-               data = flu_multi_action) %>% 
-  summary()
-
-# significance test
-
-z_multinom <- multinom_res$coefficients/multinom_res$standard.errors
-p_multinom <- (1 - pnorm(abs(z), 0, 1))*2
-
-#Nice table with coefficients per model and std. err and p-values.
-
-multinom_tbl <- tibble(
-  variable = colnames(multinom_res$coefficients),
-  late_coeff = multinom_res$coefficients[1,],
-  late_stderr = multinom_res$standard.errors[1,],
-  late_z = z_multinom[1,],
-  late_p_val = p_multinom[1,],
-  early_coeff = multinom_res$coefficients[2,],
-  early_stderr = multinom_res$standard.errors[2,],
-  early_z = z_multinom[2,],
-  early_p_val = p_multinom[2,]
-)
-
-#knitr::kable(multinom_tbl, format = "latex", booktabs = T)
-
-```
-
-
-
 ## Addition - correlation coefficient of vaccination history versus certainty
 
 ```{r vaccination history vs certainty}
@@ -757,4 +617,29 @@ cor(flu_data$five_years_vaccinations, flu_data$last_year_vaccination, use = "pai
 ggplot(flu_data, aes(x = factor(five_years_vaccinations), fill = factor(last_year_vaccination))) + 
   geom_bar(position = "fill") + 
   theme_bw()
+```
+
+
+
+## Examining the level of certainty level as a function of treatment type
+
+We show the distribution of certainty level as a function of the treatment presented to the respondents. This chart did not make it into the manuscript.
+
+```{r certainty versus treatment}
+
+ggplot(flu_data, aes(certainty)) + 
+  geom_histogram(bins = 5) + 
+  facet_wrap(~treatment)
+
+```
+
+We want to make sure that the treatment type did not affect the reported certainty level, via $\chi^2$ test.
+
+```{r certainty distribution versus treatment}
+flu_data %>% 
+  count(treatment, certainty) %>% 
+  pivot_wider(id_cols = treatment, names_from = certainty, values_from = n, values_fill = list(n=0)) %>% 
+  column_to_rownames(var = "treatment") %>% 
+  as.matrix() %>% 
+  chisq.test()
 ```
