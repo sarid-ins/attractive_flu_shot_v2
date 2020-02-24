@@ -299,6 +299,17 @@ multinom_tbl <- tibble(
 ```
 
 
+## FDR correction for significance tests within the document
+
+For the chi square tests (in the body and appendix).
+
+```{r fdr correction}
+p.adjust(p = c(0.02569, 0.04222, 0.4342,
+               0.444966166, 0.009687003, 0.003422310, 0.224901437, 0.200187974,
+               0.00796), 
+         method = "fdr")
+```
+
 # Analysis provided in the supplementary material
 
 ## Supplementary material A: additional crosstabulations in higher resolution.
@@ -446,7 +457,7 @@ chi_goodness_income <- tibble(income_lvl = c("Under", "Average", "Above")) %>%
 
 chi_goodness_income
 
-p_value_test3_for_fdr <- chi_goodness_income$p_val
+# p_value_test3_for_fdr <- chi_goodness_income$p_val
 
 #knitr::kable(chi_goodness_income, format = "markdown")
 
@@ -488,19 +499,6 @@ open_ended %>%
 
 flu_data %>% saridr::prop(age_group, leave_n = T)
   
-```
-
-# False Discovery Rate correction for the 11 comparisons of treatment effect
-
-```{r fdr corrections}
-
-tibble(original_p_value = c(p_value_test1_for_fdr,
-                            p_value_test2_for_fdr,
-                            p_value_test3_for_fdr)) %>% 
-  mutate(fdr_adjusted_p_value = p.adjust(original_p_value,
-                                         method = "fdr"))
-
-
 ```
 
 # Additional materials (only mentioned in the paper)
