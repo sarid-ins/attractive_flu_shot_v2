@@ -312,10 +312,11 @@ multinom_tbl <- tibble(
 For the chi square tests (in the body and appendix).
 
 ```{r fdr correction}
-p.adjust(p = c(0.02569, 0.04222, 0.4342,
+p.adjust(p = c(0.02569, 0.04222, 0.4545, 0.9551,
                0.444966166, 0.009687003, 0.003422310, 0.224901437, 0.200187974,
                0.00796), 
          method = "fdr")
+
 ```
 
 # Analysis provided in the supplementary material
