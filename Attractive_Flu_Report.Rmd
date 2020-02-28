@@ -313,7 +313,7 @@ For the chi square tests (in the body and appendix).
 
 ```{r fdr correction}
 p.adjust(p = c(0.02569, 0.04222, 0.4545, 0.9551,
-               0.444966166, 0.009687003, 0.003422310, 0.224901437, 0.200187974,
+               0.422617815, 0.001719782, 0.003422310, 0.224901437, 0.200187974,
                0.00796), 
          method = "fdr")
 
@@ -348,20 +348,23 @@ flu_data %>%
 
 ```{r pearson chi sq per certainty}
 
-get_chisq_pval <- function(certainty_level){
+get_chisq_pval <- function(certainty_level, type_test = chisq.test){
   tmp <- flu_data %>% 
     filter(certainty %in% certainty_level) %>% 
     count(treatment, action_binary) %>%
     pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n, values_fill = list(n=0)) %>% 
     column_to_rownames(var = "treatment") %>% 
     as.matrix() %>% 
-    chisq.test()
+    type_test()
   
-  tibble(p.val = tmp$p.value, chi_sq = tmp$statistic)
+  tibble(p.val = tmp$p.value)#, chi_sq = tmp$statistic)
 }
 
 certainty_chisq <- list(1,2,3,4,5) %>% 
-  map_df(.f = get_chisq_pval) %>% 
+  map2_df(.x = list(1,2,3,4,5), 
+          .y = list(fisher.test, fisher.test,
+               chisq.test, chisq.test, chisq.test), 
+          .f = ~get_chisq_pval(.x, .y)) %>% 
   mutate(certainty_level = as.character(list(1,2,3,4,5)))
 
 p_value_test2_for_fdr <- certainty_chisq$p.val
