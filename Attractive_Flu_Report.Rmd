@@ -136,12 +136,20 @@ chisq4 <- flu_data %>%
   chisq.test()
 
 chisq5 <- flu_data %>% 
-  filter(five_years_vaccinations >= 2) %>% 
+  filter(five_years_vaccinations == 2) %>% 
   count(treatment, action_binary) %>% 
   pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n, values_fill = list(n=0)) %>% 
   column_to_rownames(var = "treatment") %>% 
   as.matrix() %>% 
   chisq.test()
+
+fisher_exact1 <- flu_data %>% 
+  filter(five_years_vaccinations >= 3) %>% 
+  count(treatment, action_binary) %>% 
+  pivot_wider(id_cols = treatment, names_from = action_binary, values_from = n, values_fill = list(n=0)) %>% 
+  column_to_rownames(var = "treatment") %>% 
+  as.matrix() %>% 
+  fisher.test()
 
 chisq9 <- flu_data %>% 
   count(treatment, action_binary) %>% 
