@@ -181,7 +181,7 @@ The same model, with interaction of traetment*certainty
 ```{r logistic regression with uncertain interaction}
 vaccination_glm1 <- glm(data = flu_data_for_glm, 
                         family = binomial, 
-                        formula = action_binary ~ treatment + five_years_vaccinations + treatment*five_years_vaccinations)
+                        formula = action_binary ~ treatment + (five_years_vaccinations) + treatment*(five_years_vaccinations))
 
 summary(vaccination_glm1)
 ```
@@ -286,7 +286,7 @@ multinom_res <- nnet::multinom(formula = action_recoded ~ treatment,
 # significance test
 
 z_multinom <- multinom_res$coefficients/multinom_res$standard.errors
-p_multinom <- (1 - pnorm(abs(z), 0, 1))*2
+p_multinom <- (1 - pnorm(abs(z_multinom), 0, 1))*2
 
 #Nice table with coefficients per model and std. err and p-values.
 
@@ -302,7 +302,21 @@ multinom_tbl <- tibble(
   early_p_val = p_multinom[2,]
 )
 
-#knitr::kable(multinom_tbl, format = "latex", booktabs = T)
+multinom_tbl_stargazer_style <- multinom_tbl %>% 
+  mutate_at(vars(ends_with("p_val")),
+            ~{case_when(. <= 0.01 ~ "***",
+                      . <= 0.05 ~ "**",
+                      . <= 0.1 ~ "*",
+                      T ~ "")}) %>% 
+  mutate_if(is.numeric, ~{round(., 3)}) %>% 
+  mutate(Early = paste0(early_coeff, early_p_val, " (", early_stderr, ")"),
+         Late = paste0(late_coeff, late_p_val, " (", late_stderr, ")")) %>% 
+  rename(Variable = variable) %>% 
+  slice(2:4, 1) %>% 
+  select(Variable, Early, Late) %>% 
+  mutate(Variable = str_replace_all(Variable, "treatment", ""))
+
+knitr::kable(multinom_tbl_stargazer_style, format = "latex", booktabs = T)
 
 ```
 
